@@ -47,6 +47,10 @@ void load_default_config() {
 	config.glider_interval = DEFAULT_GLIDER_INTERVAL;
 	config.initial_density = DEFAULT_INITIAL_DENSITY;
 	config.wrap_edges = DEFAULT_WRAP_EDGES;
+	config.char_background = DEFAULT_CHAR_BACKGROUND;
+	config.char_foreground = DEFAULT_CHAR_FOREGROUND;
+	config.background = DEFAULT_BACKGROUND;
+	config.debug = DEFAULT_DEBUG;
 }
 
 void load_config() {
@@ -70,6 +74,10 @@ void load_config() {
 			else if (strcmp(key, "glider_interval") == 0) config.glider_interval = atoi(value);
 			else if (strcmp(key, "initial_density") == 0) config.initial_density = atof(value);
 			else if (strcmp(key, "wrap_edges") == 0) config.wrap_edges = atoi(value);
+			else if (strcmp(key, "char_background") == 0) config.char_background = atoi(value);
+			else if (strcmp(key, "char_foreground") == 0) config.char_foreground = atoi(value);
+			else if (strcmp(key, "background") == 0) config.background = atoi(value);
+			else if (strcmp(key, "debug") == 0) config.debug = atoi(value);
 		}
 	}
 
@@ -89,17 +97,18 @@ void print_grid(Cell **grid) {
 	for (int y = 0; y < HEIGHT; y++) {
 		for (int x = 0; x < WIDTH; x++) {
 			if (grid[y][x].alive) {
-				if (config.color_mode) {
-					int color = (grid[y][x].age % config.max_age) + 1;
-					attron(COLOR_PAIR(color));
-					mvaddwstr(y, x, config.cell_char);
-					attroff(COLOR_PAIR(color));
-				} else {
-					mvaddwstr(y, x, config.cell_char);
-				}
+				int color = config.max_age + 1;
+				if (config.color_mode)
+					color = (grid[y][x].age % config.max_age) + 1;
+
+				attron(COLOR_PAIR(color));
+				mvaddwstr(y, x, config.cell_char);
+				attroff(COLOR_PAIR(color));
 				mvprintw(y, x + 1, "(%d)", grid[y][x].age);
 			} else {
+				attron(COLOR_PAIR(config.max_age + 2));
 				mvaddch(y, x, ' ');
+				attroff(COLOR_PAIR(config.max_age + 2));
 			}
 		}
 	}
@@ -181,7 +190,8 @@ void update_grid(Cell **grid, Cell **new_grid) {
 		if (is_area_free(new_grid, rx, ry)) {
 			spawn_glider(new_grid, rx, ry);
 			last_glider_time = time(NULL);
-			mvprintw(HEIGHT - 1, 0, "Glider spawned at (%d, %d)", rx, ry);
+			if (config.debug)
+				mvprintw(HEIGHT - 1, 0, "Glider spawned at (%d, %d)", rx, ry);
 		}
 	}
 }
@@ -237,8 +247,10 @@ int main() {
 	use_default_colors();
 
 	for (int i = 1; i <= config.max_age; i++) {
-		init_pair(i, i, -1);
+		init_pair(i, i, config.char_background);
 	}
+	init_pair(config.max_age+1, config.char_foreground, config.char_background);
+	init_pair(config.max_age+2, -1, config.background);
 
 	getmaxyx(stdscr, HEIGHT, WIDTH);
 

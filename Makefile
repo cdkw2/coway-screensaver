@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -pedantic -D_GNU_SOURCE -std=gnu99
+CFLAGS = -Wall -Wextra -pedantic -D_GNU_SOURCE -std=gnu99 -Ofast
 LDFLAGS = -lncurses -lm
 
 SRC = conway-screensaver.c
@@ -32,4 +32,5 @@ uninstall-config:
 clean:
 	rm -f $(OBJ) $(EXEC)
 
-.PHONY: all clean install install-config
+.PHONY: all clean install install-config uninstall uninstall-config
+
