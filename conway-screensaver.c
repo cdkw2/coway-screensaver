@@ -8,6 +8,7 @@
 #include <linux/limits.h>
 #include <locale.h>
 #include <math.h>
+#include <signal.h>
 #include "conway-screensaver.h"
 
 #define CONFIG_FILE "game_of_life.conf"
@@ -199,26 +200,29 @@ void update_grid(Cell *grid, Cell *new_grid) {
 	}
 }
 
-void resize_grid(Cell **grid, Cell **new_grid) {
-	int new_height, new_width;
-	getmaxyx(stdscr, new_height, new_width);
-	if (config.debug)
-		new_height--;
+__attribute__((constructor))
+void constructor() {
+	initscr();
+	cbreak();
+	noecho();
+	curs_set(0);
 
-	if (new_height != HEIGHT || new_width != WIDTH) {
-		HEIGHT = new_height;
-		WIDTH = new_width;
+	getmaxyx(stdscr, HEIGHT, WIDTH);
+}
 
-		*grid = realloc(*grid, HEIGHT * WIDTH * sizeof(Cell));
-		if (*grid == NULL)
-			exit(1);
+void resize_grid() {
+	endwin();
+	constructor();
 
-		*new_grid = realloc(*new_grid, HEIGHT * WIDTH * sizeof(Cell));
-		if (*new_grid == NULL)
-			exit(1);
+	grid = realloc(grid, HEIGHT * WIDTH * sizeof(Cell));
+	if (grid == NULL)
+		exit(1);
 
-		init_grid(*grid);
-	}
+	new_grid = realloc(new_grid, HEIGHT * WIDTH * sizeof(Cell));
+	if (new_grid == NULL)
+		exit(1);
+
+	init_grid(grid);
 }
 
 // void init_pattern(Cell **grid, const char *pattern) {
@@ -230,6 +234,7 @@ void resize_grid(Cell **grid, Cell **new_grid) {
 // 		grid[HEIGHT / 2][WIDTH / 2 + 1].alive = 1;
 // 	}
 // }
+
 
 __attribute__((destructor))
 void destructor() {
@@ -243,11 +248,7 @@ int main() {
 	load_config();
 
 	srand(time(NULL));
-	initscr();
-	cbreak();
-	noecho();
 	keypad(stdscr, TRUE);
-	curs_set(0);
 	timeout(0);
 	start_color();
 	use_default_colors();
@@ -257,10 +258,6 @@ int main() {
 	}
 	init_pair(config.max_age+1, config.char_foreground, config.char_background);
 	init_pair(config.max_age+2, -1, config.background);
-
-	getmaxyx(stdscr, HEIGHT, WIDTH);
-	if (config.debug)
-		HEIGHT--;
 
 	grid = malloc(HEIGHT * WIDTH * sizeof(Cell));
 	if (grid == NULL)
@@ -272,6 +269,8 @@ int main() {
 	init_grid(grid);
 	last_glider_time = time(NULL);
 
+	signal(SIGWINCH, resize_grid);
+
 	// char pattern[20];
 	// mvprintw(0, 0, "Choose a pattern (glider/blinker): ");
 	// getnstr(pattern, sizeof(pattern) - 1);
@@ -279,10 +278,9 @@ int main() {
 
 	int generation = 0;
 	while (1) {
-		resize_grid(&grid, &new_grid);
 		print_grid(grid);
 		if (config.debug)
-			mvprintw(HEIGHT, 0, "Generation: %d | Glider spawned at (%d, %d) | Press '%c' to quit, '%c' to reset, '%c' to speed up, '%c' to slow down",
+			mvprintw(HEIGHT-1, 0, "Generation: %d | Glider spawned at (%d, %d) | Press '%c' to quit, '%c' to reset, '%c' to speed up, '%c' to slow down",
 					generation, last_glider_spawn[0], last_glider_spawn[1], MY_KEY_QUIT, MY_KEY_RESET, MY_KEY_SPEED_UP, MY_KEY_SLOW_DOWN);
 		refresh();
 
