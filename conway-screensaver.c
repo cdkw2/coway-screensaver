@@ -22,6 +22,9 @@ typedef struct {
 	int age;
 } Cell;
 
+Cell *grid;
+Cell *new_grid;
+
 Config config;
 
 char config_path[PATH_MAX];
@@ -228,6 +231,13 @@ void resize_grid(Cell **grid, Cell **new_grid) {
 // 	}
 // }
 
+__attribute__((destructor))
+void destructor() {
+	free(grid);
+	free(new_grid);
+	endwin();
+}
+
 int main() {
 	setlocale(LC_ALL, "");
 	load_config();
@@ -252,10 +262,10 @@ int main() {
 	if (config.debug)
 		HEIGHT--;
 
-	Cell *grid = malloc(HEIGHT * WIDTH * sizeof(Cell));
+	grid = malloc(HEIGHT * WIDTH * sizeof(Cell));
 	if (grid == NULL)
 		exit(1);
-	Cell *new_grid = malloc(HEIGHT * WIDTH * sizeof(Cell));
+	new_grid = malloc(HEIGHT * WIDTH * sizeof(Cell));
 	if (new_grid == NULL)
 		exit(1);
 
@@ -297,8 +307,5 @@ int main() {
 		usleep(config.update_interval);
 	}
 
-	free(grid);
-	free(new_grid);
-	endwin();
 	return 0;
 }
