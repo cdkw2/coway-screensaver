@@ -68,6 +68,10 @@ Below is an explanation of each configuration variable:
 - `glider_interval`: (seconds) The time interval between glider spawns in infinite mode.
 - `initial_density`: (0.0 to 1.0) The probability of a cell being alive in the initial state.
 - `wrap_edges`: (0 or 1) Enables toroidal grid edges when set to 1, or bounded edges when set to 0.
+- `char_background`: (-1 to 255) Background color of cell_char (-1 is default)
+- `char_foreground`: (-1 to 255) Foreground color of cell_char (-1 is default)
+- `background`: (-1 to 255) Background color (-1 is default)
+- `debug`: (0 or 1) Enables debug information when glider spawns
 
 Example `game_of_life.conf`:
 
@@ -80,6 +84,10 @@ color_mode=1
 glider_interval=5
 initial_density=0.3
 wrap_edges=1
+char_background=-1
+char_foreground=-1
+background=-1
+debug=0
 ```
 
 ## Infinite Mode

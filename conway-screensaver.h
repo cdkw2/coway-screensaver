@@ -11,6 +11,10 @@
 #define DEFAULT_GLIDER_INTERVAL 5
 #define DEFAULT_INITIAL_DENSITY 0.2
 #define DEFAULT_WRAP_EDGES 1
+#define DEFAULT_CHAR_BACKGROUND -1
+#define DEFAULT_CHAR_FOREGROUND -1
+#define DEFAULT_BACKGROUND -1
+#define DEFAULT_DEBUG 0
 
 #define MY_KEY_QUIT 'q'
 #define MY_KEY_RESET 'r'
@@ -26,6 +30,10 @@ typedef struct {
 	int glider_interval;
 	float initial_density;
 	int wrap_edges;
+	int char_background;
+	int char_foreground;
+	int background;
+	int debug;
 } Config;
 
 extern Config config;
