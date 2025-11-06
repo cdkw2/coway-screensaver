@@ -15,6 +15,7 @@
 
 int WIDTH, HEIGHT;
 time_t last_glider_time;
+int last_glider_spawn[2] = {0, 0};
 
 typedef struct {
 	int alive;
@@ -84,27 +85,26 @@ void load_config() {
 	fclose(file);
 }
 
-void init_grid(Cell **grid) {
+void init_grid(Cell *grid) {
 	for (int y = 0; y < HEIGHT; y++) {
 		for (int x = 0; x < WIDTH; x++) {
-			grid[y][x].alive = (rand() / (float)RAND_MAX < config.initial_density);
-			grid[y][x].age = 0;
+			grid[y*WIDTH + x].alive = (rand() / (float)RAND_MAX < config.initial_density);
+			grid[y*WIDTH + x].age = 0;
 		}
 	}
 }
 
-void print_grid(Cell **grid) {
+void print_grid(Cell *grid) {
 	for (int y = 0; y < HEIGHT; y++) {
 		for (int x = 0; x < WIDTH; x++) {
-			if (grid[y][x].alive) {
+			if (grid[y*WIDTH + x].alive) {
 				int color = config.max_age + 1;
 				if (config.color_mode)
-					color = (grid[y][x].age % config.max_age) + 1;
+					color = (grid[y*WIDTH + x].age % config.max_age) + 1;
 
 				attron(COLOR_PAIR(color));
 				mvaddwstr(y, x, config.cell_char);
 				attroff(COLOR_PAIR(color));
-				mvprintw(y, x + 1, "(%d)", grid[y][x].age);
 			} else {
 				attron(COLOR_PAIR(config.max_age + 2));
 				mvaddch(y, x, ' ');
@@ -114,7 +114,7 @@ void print_grid(Cell **grid) {
 	}
 }
 
-int count_neighbors(Cell **grid, int x, int y) {
+int count_neighbors(Cell *grid, int x, int y) {
 	int count = 0;
 	for (int dy = -1; dy <= 1; dy++) {
 		for (int dx = -1; dx <= 1; dx++) {
@@ -127,13 +127,13 @@ int count_neighbors(Cell **grid, int x, int y) {
 			} else {
 				if (nx < 0 || nx >= WIDTH || ny < 0 || ny >= HEIGHT) continue;
 			}
-			if (grid[ny][nx].alive) count++;
+			if (grid[ny*WIDTH + nx].alive) count++;
 		}
 	}
 	return count;
 }
 
-void spawn_glider(Cell **grid, int x, int y) {
+void spawn_glider(Cell *grid, int x, int y) {
 	int glider[3][3] = {
 		{0, 1, 0},
 		{0, 0, 1},
@@ -144,13 +144,13 @@ void spawn_glider(Cell **grid, int x, int y) {
 		for (int dx = 0; dx < 3; dx++) {
 			int nx = (x + dx) % WIDTH;
 			int ny = (y + dy) % HEIGHT;
-			grid[ny][nx].alive = glider[dy][dx];
-			grid[ny][nx].age = 0;
+			grid[ny*WIDTH + nx].alive = glider[dy][dx];
+			grid[ny*WIDTH + nx].age = 0;
 		}
 	}
 }
 
-int is_area_free(Cell **grid, int x, int y) {
+int is_area_free(Cell *grid, int x, int y) {
 	int glider[3][3] = {
 		{0, 1, 0},
 		{0, 0, 1},
@@ -161,7 +161,7 @@ int is_area_free(Cell **grid, int x, int y) {
 		for (int dx = 0; dx < 3; dx++) {
 			int nx = (x + dx) % WIDTH;
 			int ny = (y + dy) % HEIGHT;
-			if (grid[ny][nx].alive && glider[dy][dx] != 0) {
+			if (grid[ny * WIDTH + nx].alive && glider[dy][dx] != 0) {
 				return 0;
 			}
 		}
@@ -169,16 +169,16 @@ int is_area_free(Cell **grid, int x, int y) {
 	return 1;
 }
 
-void update_grid(Cell **grid, Cell **new_grid) {
+void update_grid(Cell *grid, Cell *new_grid) {
 	for (int y = 0; y < HEIGHT; y++) {
 		for (int x = 0; x < WIDTH; x++) {
 			int neighbors = count_neighbors(grid, x, y);
-			if (grid[y][x].alive) {
-				new_grid[y][x].alive = (neighbors == 2 || neighbors == 3);
-				new_grid[y][x].age = new_grid[y][x].alive ? grid[y][x].age + 1 : 0;
+			if (grid[y*WIDTH + x].alive) {
+				new_grid[y*WIDTH + x].alive = (neighbors == 2 || neighbors == 3);
+				new_grid[y*WIDTH + x].age = new_grid[y*WIDTH + x].alive ? grid[y*WIDTH + x].age + 1 : 0;
 			} else {
-				new_grid[y][x].alive = (neighbors == 3);
-				new_grid[y][x].age = 0;
+				new_grid[y*WIDTH + x].alive = (neighbors == 3);
+				new_grid[y*WIDTH + x].age = 0;
 			}
 		}
 	}
@@ -190,47 +190,43 @@ void update_grid(Cell **grid, Cell **new_grid) {
 		if (is_area_free(new_grid, rx, ry)) {
 			spawn_glider(new_grid, rx, ry);
 			last_glider_time = time(NULL);
-			if (config.debug)
-				mvprintw(HEIGHT - 1, 0, "Glider spawned at (%d, %d)", rx, ry);
+			last_glider_spawn[0] = rx;
+			last_glider_spawn[1] = ry;
 		}
 	}
 }
 
-void resize_grid(Cell ***grid, Cell ***new_grid) {
+void resize_grid(Cell **grid, Cell **new_grid) {
 	int new_height, new_width;
 	getmaxyx(stdscr, new_height, new_width);
+	if (config.debug)
+		new_height--;
 
 	if (new_height != HEIGHT || new_width != WIDTH) {
-		for (int i = 0; i < HEIGHT; i++) {
-			free((*grid)[i]);
-			free((*new_grid)[i]);
-		}
-		free(*grid);
-		free(*new_grid);
-
 		HEIGHT = new_height;
 		WIDTH = new_width;
 
-		*grid = malloc(HEIGHT * sizeof(Cell *));
-		*new_grid = malloc(HEIGHT * sizeof(Cell *));
-		for (int i = 0; i < HEIGHT; i++) {
-			(*grid)[i] = malloc(WIDTH * sizeof(Cell));
-			(*new_grid)[i] = malloc(WIDTH * sizeof(Cell));
-		}
+		*grid = realloc(*grid, HEIGHT * WIDTH * sizeof(Cell));
+		if (*grid == NULL)
+			exit(1);
+
+		*new_grid = realloc(*new_grid, HEIGHT * WIDTH * sizeof(Cell));
+		if (*new_grid == NULL)
+			exit(1);
 
 		init_grid(*grid);
 	}
 }
 
-void init_pattern(Cell **grid, const char *pattern) {
-	if (strcmp(pattern, "glider") == 0) {
-		spawn_glider(grid, WIDTH / 2, HEIGHT / 2);
-	} else if (strcmp(pattern, "blinker") == 0) {
-		grid[HEIGHT / 2][WIDTH / 2 - 1].alive = 1;
-		grid[HEIGHT / 2][WIDTH / 2].alive = 1;
-		grid[HEIGHT / 2][WIDTH / 2 + 1].alive = 1;
-	}
-}
+// void init_pattern(Cell **grid, const char *pattern) {
+// 	if (strcmp(pattern, "glider") == 0) {
+// 		spawn_glider(grid, WIDTH / 2, HEIGHT / 2);
+// 	} else if (strcmp(pattern, "blinker") == 0) {
+// 		grid[HEIGHT / 2][WIDTH / 2 - 1].alive = 1;
+// 		grid[HEIGHT / 2][WIDTH / 2].alive = 1;
+// 		grid[HEIGHT / 2][WIDTH / 2 + 1].alive = 1;
+// 	}
+// }
 
 int main() {
 	setlocale(LC_ALL, "");
@@ -253,33 +249,36 @@ int main() {
 	init_pair(config.max_age+2, -1, config.background);
 
 	getmaxyx(stdscr, HEIGHT, WIDTH);
+	if (config.debug)
+		HEIGHT--;
 
-	Cell **grid = malloc(HEIGHT * sizeof(Cell *));
-	Cell **new_grid = malloc(HEIGHT * sizeof(Cell *));
-	for (int i = 0; i < HEIGHT; i++) {
-		grid[i] = malloc(WIDTH * sizeof(Cell));
-		new_grid[i] = malloc(WIDTH * sizeof(Cell));
-	}
+	Cell *grid = malloc(HEIGHT * WIDTH * sizeof(Cell));
+	if (grid == NULL)
+		exit(1);
+	Cell *new_grid = malloc(HEIGHT * WIDTH * sizeof(Cell));
+	if (new_grid == NULL)
+		exit(1);
 
 	init_grid(grid);
 	last_glider_time = time(NULL);
 
-	char pattern[20];
-	mvprintw(0, 0, "Choose a pattern (glider/blinker): ");
-	getnstr(pattern, sizeof(pattern) - 1);
-	init_pattern(grid, pattern);
+	// char pattern[20];
+	// mvprintw(0, 0, "Choose a pattern (glider/blinker): ");
+	// getnstr(pattern, sizeof(pattern) - 1);
+	// init_pattern(grid, pattern);
 
 	int generation = 0;
 	while (1) {
 		resize_grid(&grid, &new_grid);
 		print_grid(grid);
-		mvprintw(HEIGHT, 0, "Generation: %d | Press '%c' to quit, '%c' to reset, '%c' to speed up, '%c' to slow down",
-				generation, MY_KEY_QUIT, MY_KEY_RESET, MY_KEY_SPEED_UP, MY_KEY_SLOW_DOWN);
+		if (config.debug)
+			mvprintw(HEIGHT, 0, "Generation: %d | Glider spawned at (%d, %d) | Press '%c' to quit, '%c' to reset, '%c' to speed up, '%c' to slow down",
+					generation, last_glider_spawn[0], last_glider_spawn[1], MY_KEY_QUIT, MY_KEY_RESET, MY_KEY_SPEED_UP, MY_KEY_SLOW_DOWN);
 		refresh();
 
 		update_grid(grid, new_grid);
 
-		Cell **temp = grid;
+		Cell *temp = grid;
 		grid = new_grid;
 		new_grid = temp;
 
@@ -298,10 +297,6 @@ int main() {
 		usleep(config.update_interval);
 	}
 
-	for (int i = 0; i < HEIGHT; i++) {
-		free(grid[i]);
-		free(new_grid[i]);
-	}
 	free(grid);
 	free(new_grid);
 	endwin();
